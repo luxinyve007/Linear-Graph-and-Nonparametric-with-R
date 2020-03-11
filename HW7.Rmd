@@ -1,0 +1,141 @@
+---
+title: "HW7"
+author: "Xinyue Lu"
+date: "2020/3/8"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Problem 1. Use function gam discussed in class to build a model for the prostate cancer data. 
+
+```{r}
+library('lasso2')
+data(Prostate)
+library(gam)
+```
+
+#### Pick 3 continuous predictors lcavol, lweight, lcp. Build 3 univariate models (one predictor at a time) using smoothing spline. 
+
+```{r}
+gam.1 = gam(lpsa~s(lcavol,3),data=Prostate)
+gam.2 = gam(lpsa~s(lweight,3),data=Prostate)
+gam.3 = gam(lpsa~s(lcp,3),data=Prostate)
+par(mfrow=c(2,2))
+plot(gam.1, se=TRUE ,col="blue")
+plot(gam.2, se=TRUE ,col="blue")
+plot(gam.3, se=TRUE ,col="blue")
+
+```
+
+#### Then put all three predictors into gam(), use smoothing splines (option s()).Discuss whether the model with all three predictors improves the fit significantly.  
+
+The model with 3 predictors improved the fit significantly. First, this model had the smallest AIC. Second, accroding to the ANOVA tests, this model was better than any of its sub models.
+
+```{r}
+gam.4 = gam(lpsa~s(lcavol,3)+s(lweight,3)+s(lcp,3),data=Prostate)
+par(mfrow=c(2,2))
+plot(gam.4, se=TRUE ,col="blue")
+summary(gam.1)$aic
+summary(gam.2)$aic
+summary(gam.3)$aic
+summary(gam.4)$aic
+anova(gam.1,gam.4)
+anova(gam.2,gam.4)
+anova(gam.3,gam.4)
+```
+
+
+#### Use 10 folds cross validation to estimate predictive MSE. 
+
+Accroding to 10-fold cross validation, the model with all the 3 predictors had the smallest cross validation MSE 0.6118.
+```{r}
+CVgam <- function (formula, data, nfold = 10, debug.level = 0, printit = TRUE, cvparts = NULL, gamma = 1, seed = 29){
+    if (is.null(cvparts)) {
+        set.seed(seed)
+        cvparts <- sample(1:nfold, nrow(data), replace = TRUE)
+    }
+    folds <- unique(cvparts)
+    khat <- hat <- numeric(nrow(data))
+    scale.gam <- summary(gam(formula, data = data))$scale
+    for (i in folds) {
+        trainrows <- cvparts != i
+        testrows <- cvparts == i
+        elev.gam <- gam(formula, data = data[trainrows, ], 
+                        gamma = gamma)
+        hat[testrows] <- predict(elev.gam, newdata = data[testrows,], select = TRUE)
+        res <- residuals(elev.gam)
+    }
+    y <- eval(formula[[2]], envir = as.data.frame(data))
+    res <- y - hat
+    cvscale <- sum(res^2)/length(res)
+    prntvec <- c(GAMscale = scale.gam, `CV-mse-GAM ` = cvscale)
+    if (printit)
+        print(round(prntvec, 4))
+    invisible(list(fitted = hat, resid = res, cvscale = cvscale, scale.gam = scale.gam))
+}
+print("lcavol-model")
+CVgam.1<-CVgam(lpsa~s(lcavol), data=Prostate, nfold = 10,  seed = 666)
+print("lweight-model")
+CVgam.2<-CVgam(lpsa~s(lweight), data=Prostate, nfold = 10,  seed = 666)
+print("lcp-model")
+CVgam.3<-CVgam(lpsa~s(lcp), data=Prostate, nfold = 10,  seed = 666)
+print("lcavol-lweight-lcp-model")
+CVgam.4<-CVgam(lpsa~s(lcavol)+s(lweight)+s(lcp), data=Prostate, nfold = 10,  seed = 666)
+```
+
+#### Problem 2  Using the dataset Carseats (see the code below), Predict Sales using regression trees and related approaches, treating the response as a quantitative variable 
+
+```{r}
+library(ISLR) 
+#data(package="ISLR")
+attach(Carseats) 
+```
+
+#### a). Split the data set into a training set and a test set.
+```{r}
+set.seed(666)
+test.idx = sample(1:nrow(Carseats),nrow(Carseats)/3)
+train = Carseats[-test.idx,]
+test = Carseats[test.idx,]
+```
+
+#### b). Fit a regression tree to the training set. Plot the tree, and interpret the results. What test error rate do you obtain?
+
+The default tree used 7 variables and had 18 terminal nodes.
+The MSE of the train set was 2.482 while the MSE of the test set was 5.2386. The test MSE was over 1 time larger than the train MSE, which indicated that the tree was overfitting.
+
+```{r}
+library(tree)
+#default tree
+set.seed(555)
+tree1=tree(Sales~.,data=train)
+summary(tree1)
+plot(tree1)
+text(tree1,pretty=0,cex=0.7)
+#tree1
+tree1.pred=predict(tree1, test)
+mean((tree1.pred-test$Sales)^2)
+```
+
+#### c). Use cross-validation in order to determine the optimal level of tree complexity. Does pruning the tree improve the test error rate?
+
+Accroding to the cross validation results, the tree with the lowest cross validation error used 2 variables and had 5 leaves. The MSE of the train set was 4.262 while the MSE of the test set was 5.0305. Pruning the tree did improve the test error rate. The model also became simpler and more robust.
+
+```{r}
+#cross validation 
+set.seed(666)
+tree1.cv <- cv.tree(tree1)
+summary(tree1.cv)
+plot(tree1.cv)
+# pick the best size from cross validation
+tree1.prune<-prune.tree(tree1, best=5)
+summary(tree1.prune)
+plot(tree1.prune)
+text(tree1.prune,pretty=0,cex=0.7)
+tree1.prune.pred=predict(tree1.prune, test)
+mean((tree1.prune.pred-test$Sales)^2)
+```
+
