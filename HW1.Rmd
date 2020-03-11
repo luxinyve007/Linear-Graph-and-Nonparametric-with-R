@@ -1,0 +1,183 @@
+--
+title: "HW1_Linear"
+author: "Xinyue Lu"
+date: "2020/1/21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+9. This exercise involves the Auto data set studied in the lab. Make sure that the missing values have been removed from the data.
+
+Load data and remove missing values.
+```{r}
+auto <- read.csv("D:/luxinyve/00 Linear graph/HW1/Auto.csv",header=T,na.strings ="?")
+dim(auto)
+auto = na.omit(auto)
+dim(auto)
+```
+
+(a) Which of the predictors are quantitative, and which are qualitative?
+
+Name and origin are quantitative. The rest are qualitative.
+
+```{r}
+str(auto)
+summary(auto)
+```
+
+(b) What is the range of each quantitative predictor? You can answer this using the range() function.
+
+```{r}
+attach(auto)
+col = colnames(auto)
+for (i in 1:8){
+cat('The range of',col[i],'is [',range(auto[,i])[1],',',range(auto[,i])[2],'].\n')}
+```
+
+
+(c) What is the mean and standard deviation of each quantitative predictor? 
+```{r}
+for (i in 1:8){
+cat('The mean of',col[i],'is',mean(auto[,i]),'. The standard deviation is',sd(auto[,i]),'\n')}
+```
+
+
+(d) Now remove the 10th through 85th observations. What is the range, mean, and standard deviation of each predictor in the subset of the data that remains? 
+
+```{r}
+auto.2 <- auto[-c(10:85),]
+for (i in 1:8){
+cat('The range of',col[i],'is [',range(auto.2[,i])[1],',',range(auto[,i])[2],']. The mean is',mean(auto.2[,i]),'. The standard deviation is',sd(auto.2[,i]),'\n')}
+```
+
+
+(e) Using the full data set, investigate the predictors graphically, using scatterplots or other tools of your choice. Create some plots highlighting the relationships among the predictors. Comment on your ﬁndings. 
+
+The scatterplot matrix of all the variables showed that some variables had clear linear relashionships and others did not. For example, there was clear linear relashionship between weight and horsepower while the linear relashionship between displacement and year was not significant. Besides, different origins had different displacement distributions while the distributions of acceleration were not so different.
+
+```{r}
+plot(auto)
+par(mfrow=c(2,2))
+plot(weight,horsepower)
+plot(displacement,year)
+plot(as.factor(origin),acceleration, xlab='origin',ylab='acceleration' )
+plot(as.factor(origin),displacement,xlab='origin',ylab='displacement')
+```
+
+
+(f) Suppose that we wish to predict gas mileage (mpg) on the basis of the other variables. Do your plots suggest that any of the other variables might be useful in predicting mpg? Justify your answer.
+
+Accroding to the scatterplot matix, displacement, horsepower and weight might be useful. So I built a linear model containing all the three variables. The model showed that the effects of horsepower and weight were significant, but the effect of displacement was not. However, displacement along was significant and the model R-squared was 0.648, which was not low.
+
+```{r}
+model.1 <- lm(mpg~displacement+acceleration+horsepower+weight)
+summary(model.1)
+model.2 <- lm(mpg~displacement)
+summary(model.2)
+```
+
+8. This question involves the use of simple linear regression on the Auto data set.
+(a) Use the lm() function to perform a simple linear regression with mpg as the response and horsepower as the predictor. Use the summary() function to print the results. Comment on the output. For example:
+
+i. Is there a relationship between the predictor and the response? 
+ii. How strong is the relationship between the predictor and the response? 
+iii. Is the relationship between the predictor and the response positive or negative? 
+iv. What is the predicted mpg associated with a horsepower of 98? What are the associated 95% conﬁdence and prediction intervals? 
+
+The linear relationship between mpg and horsepower was very significant strong and negetive, accroding to the correlation coefficient -0.778. The p-value of horsepower was significant and the R-squared was not low.
+
+The predicted mpg with horsepower 98 was 24.46708. 
+The 95% conﬁdence interval was [23.97308, 24.96108].
+The 95% prediction interval was [14.8094, 34.12476].
+
+```{r}
+cor(mpg,horsepower)
+model.a <- lm(mpg~horsepower)
+summary(model.a)
+predict(model.a, data.frame(horsepower=98),interval = "confidence")
+predict(model.a, data.frame(horsepower=98),interval = "prediction")
+
+```
+
+(b) Plot the response and the predictor. Use the abline() function to display the least squares regression line. 
+
+```{r}
+s=summary(model.a)
+plot(horsepower,mpg)
+abline(s$coef[1],s$coef[2])
+```
+
+(c) Use the plot() function to produce diagnostic plots of the least squares regression ﬁt. Comment on any problems you see with the ﬁt.
+
+The 'Residuals vs Fitted' plot showed a 'curve', which implied that there were higher order relashionship between mpg and horsepower. The 'QQ-plot' showed that the residuals were not very normal. The 'Residuals vs Leverage' plot showed that there were many observations had strong influence on the model and might be abnormal.
+
+```{r}
+par(mfrow=c(2,2))
+plot(model.a)
+```
+
+9. This question involves the use of multiple linear regression on the Auto data set.
+(a) Produce a scatterplot matrix which includes all of the variables in the data set. 
+```{r}
+plot(auto)
+```
+
+(b) Compute the matrix of correlations between the variables using the function cor(). You will need to exclude the name variable, which is qualitative. 
+```{r}
+cor(auto[,1:8])
+```
+
+(c) Use the lm() function to perform a multiple linear regression with mpg as the response and all other variables except name as the predictors. Use the summary() function to print the results. Comment on the output. For instance: 
+i. Is there a relationship between the predictors and the response? 
+ii. Which predictors appear to have a statistically signiﬁcant relationship to the response? 
+iii. What does the coeffcient for the year variable suggest? 
+
+The model was significant. Significant predictors were displacement, weight, year and origin. The coeffcient for the year suggested that the later the car was manufactured, the more mpg it had. However, horsepower was not significant in this model.
+
+```{r}
+model.c <- lm(mpg~cylinders+displacement+horsepower+weight+acceleration+year+origin)
+summary(model.c)
+```
+
+(d) Use the plot() function to produce diagnostic plots of the linear regression ﬁt. Comment on any problems you see with the ﬁt. Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage? 
+
+The residuals were positive when the fitted values were relative small or large. And The residuals were pretty large when fitted values were large. The 321, 325, 324 observations' residuals were extreamly large. The leverage plot identified the 14th ovservation as a very abnormal one.
+
+```{r}
+plot(model.c)
+```
+
+(e) Use the * and : symbols to ﬁt linear regression models with interaction effects. Do any interactions appear to be statistically signiﬁcant? 
+
+The interaction effect of acceleration and origin was very significant. The interaction effect of displacement and year, and acceleration and year were also relatively significant.
+
+```{r}
+model.e <- lm(mpg~cylinders+	displacement+	horsepower+	weight+	acceleration+	year+	origin+	cylinders:displacement+	cylinders:horsepower+	displacement:horsepower+	cylinders:weight+	displacement:weight+	horsepower:weight+	cylinders:acceleration+	displacement:acceleration+	horsepower:acceleration+	weight:acceleration+	cylinders:year+	displacement:year+	horsepower:year+	weight:year+	acceleration:year+	cylinders:origin+	displacement:origin+	horsepower:origin+	weight:origin+	acceleration:origin+	year:origin)
+summary(model.e)
+```
+
+(f) Try a few different transformations of the variables, such as log(X), √X, X2. Comment on your ﬁndings.
+
+The squared horsepower, squared acceleration, squared weight and log year were significant.
+
+```{r}
+cylinders2 = cylinders^2
+horsepower2 = horsepower^2
+weight2 = weight^2
+acceleration2 = acceleration^2
+displacement2 = displacement^2
+logyear = log(year)
+model.f <- lm(mpg~cylinders+cylinders2+horsepower+horsepower2+displacement+displacement2+acceleration+acceleration2+weight+weight2+logyear+year+origin)
+model.f <- lm(mpg~horsepower+horsepower2+acceleration+acceleration2+weight+weight2+logyear+year+origin)
+summary(model.f)
+plot(model.f)
+```
+
+
+
+
+
+

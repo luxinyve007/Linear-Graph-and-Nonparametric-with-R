@@ -1,0 +1,129 @@
+---
+title: "HW2"
+author: "Xinyue Lu"
+date: "2020/1/23"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Consider Prostate cancer study, page 49 the book attached 
+```{r}
+library('lasso2')
+data(Prostate)
+```
+
+#### 1. Discuss the correlation between predictors, list the pairs with strong correlations
+
+The pairs with strong correlations were:
+(lcavol, lcp), (lcavol, lpsa), (svi, lcp), (lcp, pgg45), (gleason, pgg45 )
+
+```{r}
+corr.P = cor(Prostate)
+col = colnames(Prostate)
+cat('The pairs with strong correlations (r>0.6) were:\n')
+for (i in 1:9){
+  for (j in 1:9){
+    if (corr.P[i,j] > 0.6 & i<j){cat('(',col[i],',',col[j],')\n')}}}
+cat('The correlation matrix was:\n\n')
+corr.P
+```
+
+#### 2. Fit the two linear models to the lpsa using the original values of the predictors and the standardized (unit variance) ones. Compare the significance of the resulting coefficients. In what follows consider standartized predictors.
+
+When the original predictors were used, lcavol,lweight and svi were significant predictors.
+When the standardized predictors were used, the significance (p-value) of their coefficients were the same. Yet the intercept changed from insignificant to significant.
+
+```{r}
+m1<- lm(lpsa~ lcavol+lweight+age+ lbph  + svi +lcp +gleason + pgg45,
+data=Prostate)
+summary(m1)
+Prostate.s = Prostate
+for (i in 1:8){Prostate.s[i] = scale(Prostate[i])}
+m2<- lm(lpsa~ lcavol+lweight+age+ lbph  + svi +lcp +gleason + pgg45,
+data=Prostate.s)
+summary(m2)
+```
+
+#### 3. Read Section 3.3.1 and produce a plot similar to Figure 3.5 (page 58). List the predictors from the best model with 4 and 5 predictors.
+
+Use all the data as training set, so the sum of residuals were larger than thoes in the textbook. 
+
+The predictors of the best model with 4 predictors were: lcavo, lweight, lbph, svi.
+The predictors of the best model with 5 predictors were: lcavo, lweight, lbph, svi, age.
+
+```{r}
+library(leaps)
+prostate.leaps <- regsubsets( lpsa ~ . ,method="exhaustive", data=Prostate.s, nbest=70,really.big=TRUE )
+prostate.leaps.sum <- summary( prostate.leaps )
+prostate.models <- prostate.leaps.sum$which
+prostate.models.size <- as.numeric(attr(prostate.models, "dimnames")[[1]])
+prostate.models.rss <- prostate.leaps.sum$rss
+prostate.models.best.rss <- tapply( prostate.models.rss, prostate.models.size, min )
+prostate.models.best.rss
+prostate.dummy <- lm( lpsa ~ 1, data=Prostate.s ) # only intercept model
+prostate.models.best.rss <- c(sum(resid(prostate.dummy)^2),prostate.models.best.rss)
+
+cat('The best model with 4 predictors:\n\n')
+index.best4 = which( prostate.models.rss == prostate.models.best.rss[5])
+prostate.models[index.best4,]
+cat('The best model with 5 predictors:\n\n')
+index.best5 = which( prostate.models.rss == prostate.models.best.rss[6])
+prostate.models[index.best5,]
+
+cat('Plot Figure 3.5 with all the data:\n\n')
+plot( 0:8, prostate.models.best.rss, ylim=c(0, 150),
+type="b",xlab="subset size",ylab="Residual Sum Square",col="red2" )
+points( prostate.models.size, prostate.models.rss, 
+pch=17, col="brown",cex=0.7 )
+
+```
+
+#### 4. Run Forward, Backward and Stepwise Selection, write down the resulting best models, are they the same? Compare the models with the one resulted from the best subset selection with the same number of predictors.
+
+All the 3 methods, Forward, Backward and Stepwise selection methods, selected the same 5 predictors in the final model, which were the same 5 predictors as the best subset method selected with 5 predictors in the model.
+
+```{r}
+library(MASS)
+fit1 <- lm(lpsa ~ ., Prostate.s)
+fit2 <- lm(lpsa ~ 1, Prostate.s)
+step.forward <- stepAIC(fit2, direction="forward",scope=list(upper=fit1,lower=fit2))
+step.forward$anova
+
+step.backward <- stepAIC(m2, direction="backward")
+step.backward$anova
+
+step.both <- stepAIC(m2, direction="both")
+step.both$anova
+```
+
+#### 6.
+```{r}
+lambda = 4
+y = 2
+beta = seq(-5,5,0.01)
+f = (y-beta)**2+lambda*beta**2
+plot(beta,f,type='l',main=c('lambda=4,y=2'))
+minbeta = y/(lambda+1) 
+minf = (y-minbeta)**2+lambda*minbeta**2
+points(minbeta,minf)
+```
+
+
+```{r}
+lambda = 1
+y = -2
+beta = seq(-5,5,0.01)
+f = (y-beta)**2+lambda*abs(beta)
+minbeta=0
+if(y>lambda/2){minbeta = y-lambda/2}
+if(y< -lambda/2){minbeta = y+lambda/2}
+minf = (y-minbeta)**2+lambda*abs(minbeta)
+plot(beta,f,type='l',main=c('lambda=1,y=-2'))
+points(minbeta,minf)
+```
+

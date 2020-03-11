@@ -1,0 +1,173 @@
+---
+title: "HW4"
+author: "Xinyue Lu"
+date: "2020/2/17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### 1. Compare the results of analysis of  prostate cancer dataset. Use 3 models: best subset selection, ridge regression and lasso.  First, compare the set of important variables between lasso and best subset selection. Use 10 fold cross validation. Report cross validated MSE for each method. Compare. 
+
+Summary:
+The best subset selection methods choosed 5 variables: cavol, lweight, age, lbph, svi. The mean 10-fold cross validation error was 0.5275879. The Lasso model also chooed 5 variables: lcavol, lweight, lbph, svi, pgg45, which were different than the best subset method choosed. The mean cross validated error was 0.5519, which was larger than that of the best subset method.
+
+
+```{r}
+library('lasso2')
+data(Prostate)
+sum(is.na(Prostate))
+Prostate.s = Prostate
+for (i in 1:8){Prostate.s[i] = scale(Prostate[i])}  
+```
+
+#### 1.1 Best Subset Selection
+
+The model chosen with smallest cross validation error had 5 variables: cavol, lweight, age, lbph, svi. The mean 10-fold cross validation error was 0.5275879.
+
+```{r}
+library(leaps)
+prostate.leaps <- regsubsets( lpsa ~ . ,method="exhaustive", data=Prostate.s, nbest = 70,really.big = TRUE )
+prostate.leaps.sum = summary(prostate.leaps)
+prostate.models <- prostate.leaps.sum$which
+prostate.models.adjr2 <- prostate.leaps.sum$adjr2
+
+index.best.adjr2 = which( prostate.models.adjr2 == max(prostate.leaps.sum$adjr2))
+prostate.models[index.best.adjr2,]
+
+prostate.models.size <- as.numeric(attr(prostate.models, "dimnames")[[1]])
+prostate.models.rss <- prostate.leaps.sum$rss
+prostate.models.best.rss <- tapply( prostate.models.rss, prostate.models.size, min )
+prostate.models.best.rss
+prostate.dummy <- lm( lpsa ~ 1, data=Prostate.s ) # only intercept model
+prostate.models.best.rss <- c(sum(resid(prostate.dummy)^2),prostate.models.best.rss)
+
+cat('The best model with 4 predictors:\n\n')
+index.best4 = which( prostate.models.rss == prostate.models.best.rss[5])
+prostate.models[index.best4,]
+cat('The best model with 5 predictors:\n\n')
+index.best5 = which( prostate.models.rss == prostate.models.best.rss[6])
+prostate.models[index.best5,]
+cat('The best model with 6 predictors:\n\n')
+index.best6 = which( prostate.models.rss == prostate.models.best.rss[7])
+prostate.models[index.best6,]
+
+
+library(glmnet)
+
+y=Prostate.s$lpsa
+grid = 10 ^ seq(5, -2, length=100)
+
+X=model.matrix(lpsa~., data=Prostate.s)
+l.cv = cv.glmnet(X,y,alpha=0,lambda=c(0,0.1),thresh=1e-12,nfolds = 10, seed=123)
+l.cv$cvm[1]
+
+X=model.matrix(lpsa~lcavol+lweight+age+lbph+svi+lcp+pgg45, data=Prostate.s)
+l.cv = cv.glmnet(X,y,alpha=0,lambda=c(0,0.1),thresh=1e-12,nfolds = 10, seed=123)
+l.cv$cvm[1]
+
+X=model.matrix(lpsa~lcavol+lweight+age+lbph+svi+pgg45, data=Prostate.s)
+l.cv = cv.glmnet(X,y,alpha=0,lambda=c(0,0.1),thresh=1e-12,nfolds = 10, seed=123)
+l.cv$cvm[1]
+
+X=model.matrix(lpsa~lcavol+lweight+age+lbph+svi, data=Prostate.s)
+l.cv = cv.glmnet(X,y,alpha=0,lambda=c(0,0.1),thresh=1e-12,nfolds = 10, seed=123)
+l.cv$cvm[1]
+predict(l.cv,s=0,type="coefficients")[,1]
+
+X=model.matrix(lpsa~lcavol+lweight+lbph+svi, data=Prostate.s)
+l.cv = cv.glmnet(X,y,alpha=0,lambda=c(0,0.1),thresh=1e-12,nfolds = 10, seed=123)
+l.cv$cvm[1]
+
+```
+
+#### 1.2 Ridge Regression
+
+The best lambda was 0.0599. The cross validated MSE was 0.5514.
+
+```{r}
+X=model.matrix(lpsa~., data=Prostate.s)
+ridge.cv = cv.glmnet(X,y,alpha=0,lambda=grid,thresh=1e-12,nfolds = 10, seed=123)
+plot(ridge.cv)
+
+min(ridge.cv$cvm)
+lambda.best=ridge.cv$lambda.min
+lambda.best
+
+predict(ridge.cv,s=lambda.best,type="coefficients")
+```
+
+#### 1.3 lasso Regression
+
+5 variables were choosen in the Lasso model. They were lcavol, lweight, lbph, svi, pgg45. The best lambda was 0.01. The cross validated MSE was 0.5519.
+
+```{r}
+lasso.cv = cv.glmnet(X,y,alpha=1,lambda=grid,thresh=1e-12,nfolds = 10,seed=123)
+plot(lasso.cv)
+
+min(lasso.cv$cvm)
+
+lambda.best=lasso.cv$lambda.min
+lambda.best
+
+lasso.coef=predict(lasso.cv,s=lambda.best,type="coefficients")[,1]
+lasso.coef[lasso.coef!=0]
+```
+
+#### 2. Following in class discussion Build LASSO model for the dataset  LiNK  using  two packages glmnet and biglasso. Use 20 fold cross validation. Report the results. Compare the performance 
+
+```{r}
+data<-readRDS('D:/luxinyve/00 Linear graph/HW4/bcTCGA.rds')
+summary(data)
+dim(data)
+```
+
+#### 2.1 fit with biglasso
+
+The biglasso method selected 96 variables. The best lambda was 0.04233. The mean 20-fold cross validation error was 0.19977.
+
+```{r}
+library(biglasso)
+X.bm <- as.big.matrix(data$X)
+dim(X.bm)
+
+cvfit <- cv.biglasso(X.bm, data$y, family = "gaussian", seed = 1234,nfolds = 20, ncores = 4)
+cvfit$lambda.min
+min(cvfit$cve)
+
+plot(cvfit$fit) 
+abline(v = log(cvfit$lambda.min), col = 2, lty = 2)
+
+par(mfrow = c(2, 2), mar = c(3.5, 3.5, 3, 1), mgp = c(2.5, 0.5, 0)) 
+plot(cvfit, type = "all")
+
+coefs <- as.matrix(coef(cvfit))
+length(coefs[coefs != 0, ])
+
+```
+
+#### 2.2 fit with glmnet
+
+The lasso method selected 51 variables. The best lambda was 0.04329. The mean 20-fold cross validation error was 0.1983196. The general lasso selected much fewer variables than the biglasso method and had smaller mean cross validation error. Its operation speed was slower than the biglasso's, but it was acceptable. 
+
+```{r}
+X.m <- as.matrix(data$X)
+dim(X.m)
+one = rep(1, times=536)
+X.m.1=cbind(one,X.m)
+dim(X.m.1)
+
+lasso.cv = cv.glmnet(X.m.1, data$y,alpha=1,lambda=grid,thresh=1e-12,seed = 1234,nfolds = 20)
+plot(lasso.cv)
+
+min(lasso.cv$cvm)
+
+lambda.best=lasso.cv$lambda.min
+lambda.best
+
+coefs <- as.matrix(coef(lasso.cv))
+length(coefs[coefs != 0, ])
+```
+

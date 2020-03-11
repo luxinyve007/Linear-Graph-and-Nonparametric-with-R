@@ -1,0 +1,240 @@
+---
+title: "HW3"
+output:
+  html_document:
+    df_print: paged
+---
+
+#### 1. 2 from section 6.8
+
+#### (a)
+iii. Lasso regression has restrictions on the parameters while least squares don’t. The restrictions prevent the model from overfitting so bias will increase, and variance will decrease.
+
+#### (b)
+iii. Ridge regression has restrictions on the parameters while least squares don’t. The restrictions prevent the model from overfitting so bias will increase, and variance will decrease.
+
+#### (c)
+ii Non-linear methods are more flexible and can fit the training set better than linear models. So bias will decrease and variance increase.
+
+
+
+#### 2. Read the lab 6.6 , page 251-255, and repeat the steps for ridge and lasso regression
+
+1) Import and prepare the data.
+
+```{r}
+library (ISLR) 
+names(Hitters)
+# Drop missing rows
+Hitters =na.omit(Hitters) 
+dim(Hitters)
+sum(is.na(Hitters$Salary))
+```
+
+2) Ridge Regression
+```{r}
+library (glmnet)
+grid=10^seq(10,-2, length =100) 
+# generate training set and testing set
+set.seed(666)
+train=sample (1: nrow(Hitters), nrow(Hitters)/2) 
+test=(-train) 
+# Split x and y 
+Hitters.train=Hitters[train,]
+Hitters.test=Hitters[test,]
+x.train=model.matrix(Salary ~ .,Hitters.train)[,-1]
+y.train=Hitters.train$Salary
+x.test=model.matrix(Salary ~ .,Hitters.test)[,-1]
+y.test=Hitters.test$Salary
+
+# basic ridge model 
+ridge.mod=glmnet(x.train,y.train,alpha=0,lambda=grid, thresh=1e-12)
+
+# randomly choose a lambda
+ridge.pred1=predict(ridge.mod, x=x.train,y=y.train,s=4, newx=x.test)
+mean((ridge.pred1 -y.test)^2)
+ridge.pred2=predict(ridge.mod, x=x.train,y=y.train,s=0, newx=x.test,exact = TRUE)
+mean((ridge.pred2 -y.test)^2)
+ridge.pred3=predict(ridge.mod, x=x.train,y=y.train,s=10000, newx=x.test,exact = TRUE)
+mean((ridge.pred3 -y.test)^2)
+
+# use cross validation to choose the best lambda
+set.seed(666)
+cv.out=cv.glmnet(x.train,y.train,alpha=0,lambda=grid, thresh=1e-12) 
+plot(cv.out)
+bestlam =cv.out$lambda.min
+bestlam 
+ridge.pred=predict (ridge.mod ,s=bestlam ,newx=x.test) 
+mean((ridge.pred -y.test)^2)
+```
+
+
+```{r}
+# fit the Ridge Regression model with the best lambda and total data
+x=model.matrix(Salary ~ .,Hitters)[,-1]
+ridge.tot=glmnet(x,Hitters$Salary,alpha=0,lambda=bestlam) 
+ridge.coef = predict(ridge.tot ,type="coefficients",s=bestlam)[1:20,] 
+ridge.coef
+ridge.tot.pred = model.matrix(Salary ~ .,Hitters)%*%array(ridge.coef)
+mean((ridge.tot.pred -Hitters$Salary)^2) 
+```
+
+3) Ordinary Least Squares Estimates
+The OLS estimates were almost the same as the coefficients of the Ridge Regression with lambda = 0. Tiny computation errors existed.
+
+```{r}
+lm.coef=lm(Salary~., data=Hitters,subset=train)$coef
+lm.coef
+predict(x=x.train,y=y.train, ridge.mod ,s=0,exact=T,type="coefficients")[1:20,]
+
+lm.tot.pred = model.matrix(Salary ~ .,Hitters)%*%array(lm.coef)
+mean((lm.tot.pred -Hitters$Salary)^2)
+```
+
+4) Lasso Regression
+
+```{r}
+lasso.mod=glmnet(x.train,y.train,alpha=1,lambda=grid) 
+plot(lasso.mod)
+
+# cross-validation 
+set.seed(666) 
+cv.out=cv.glmnet(x.train,y.train,alpha=1,lambda=grid) 
+plot(cv.out) 
+la.bestlam =cv.out$lambda.min 
+la.bestlam
+lasso.pred=predict (lasso.mod ,s=la.bestlam ,newx=x[test,]) 
+mean((lasso.pred -y.test)^2) 
+
+la.tot=glmnet(x,Hitters$Salary,alpha=1,lambda=grid)
+lasso.coef=predict (la.tot ,type="coefficients",s=la.bestlam)[1:20,] 
+lasso.coef 
+lasso.coef[lasso.coef!=0] 
+
+la.tot.pred = model.matrix(Salary ~ .,Hitters)%*%array(lasso.coef)
+mean((la.tot.pred -Hitters$Salary)^2)
+```
+
+
+#### 3) 9 (a-d) from section 6.8
+#### (a) Split the data set into a training set and a test set. 
+
+```{r}
+# Import data College
+college <- read.csv("D:/luxinyve/00 Linear graph/HW3/College.csv",header=T,na.strings ="?")
+#str(college)
+sum(is.na(college))
+#rownames(college) = college[,1] #fix(college)
+college = college[,-1]#fix(college)
+# Split the data into test:train = 1:2
+set.seed(123)
+train=sample (1: nrow(college), nrow(college)/3*2) 
+test=-train
+```
+
+#### (b) Fit a linear model using least squares on the training set, and report the test error obtained. 
+
+The mean squared error on the testing set was 779551.
+
+```{r}
+b.lm = lm(Apps~.,data=college[train,])
+summary(b.lm)
+y.predict = predict(b.lm,newdata = college[test,]) # newdata=test is equal to x.test
+lm.test.err = mean((college[test,]$Apps-y.predict)^2)
+lm.test.err
+```
+
+(c) Fit a ridge regression model on the training set, with λ chosen by cross-validation. Report the test error obtained. 
+
+The best lambda for lasso chosen by cross validation was 0.01, which was rather small. The mean squared error on the testing set was 779536, which was a little bit smaller than the one for the ordinary linear model. Overall, for this data set, ridge regression's restriction was not strong so that it produced similar results as the ordinary linear regression. From the cross validation plot against lambda, we could see that regulization had little effect on reducing the testing error.
+```{r}
+library(glmnet)
+x.train=model.matrix(Apps~., data=college[train,])
+x.test=model.matrix(Apps~., data=college[test,])
+y.train=college[train,]$Apps
+y.test=college[test,]$Apps
+grid = 10 ^ seq(5, -2, length=100)
+
+set.seed(123)
+ridge.cv = cv.glmnet(x.train,y.train,alpha=0,lambda=grid,thresh=1e-12)
+plot(ridge.cv)
+lambda.best=ridge.cv$lambda.min
+lambda.best
+y.predict = predict(ridge.cv,newx = x.test,s=lambda.best) # newdata=test is equal to x.test
+ridge.test.err = sum((y.test-y.predict)^2)/nrow(x.test)
+ridge.test.err
+```
+
+(d) Fit a lasso model on the training set, with λ chosen by cross validation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+The best lambda for lasso chosen by cross validation was 17.88. The mean squared error on the testing set was 748371, which was larger than the linear regression model and ridge model. There were 15 non-zero coefficient estimates. They were: PrivateYes, Accept, Enroll, Top10perc, Top25perc, P.Undergrad, Outstate, Room.Board, Personal, PhD, Terminal, S.F.Ratio, perc.alumni, Expend, Grad.Rate
+```{r}
+# choose best lasso lambda with cross validation.
+set.seed(123)
+lasso.cv = cv.glmnet(x.train,y.train,alpha=1,lambda=grid,thresh=1e-12)
+plot(lasso.cv)
+lasso.lambda.best=lasso.cv$lambda.min
+lasso.lambda.best
+y.predict = predict(lasso.cv,newx = x.test,s=lasso.lambda.best) # newdata=test is equal to x.test
+lasso.test.err = sum((y.test-y.predict)^2)/nrow(x.test)
+lasso.test.err
+# fit a total lasso model with the best lasso lambda 
+x.tot=model.matrix(Apps~., data=college)
+lasso.tot=glmnet(x.tot,college$Apps,alpha=1,lambda=lasso.lambda.best,thresh=1e-12)
+lasso.coef=predict(lasso.tot,type='coefficients',s=lasso.lambda.best,thresh=1e-12)[,1]
+lasso.coef[lasso.coef!=0]
+```
+
+
+#### 4) for the  prostate cancer data from the previous homework 
+```{r}
+# import data
+library('lasso2')
+data(Prostate)
+```
+
+#### (a) Fit a ridge regression model on the training set, with λ chosen by cross-validation. Report the test error obtained. 
+
+The best lambda for lasso chosen by cross validation was 0.689. The mean squared error on the testing set was 0.6243547. From the cross validation plot against lambda, we could see that regulization could produce smaller mean squared test error than ordinary linear regression with appropriate lambda.
+
+```{r}
+# split train and test
+set.seed(999)
+train=sample (1: nrow(Prostate), nrow(Prostate)/2) 
+test=(-train) 
+P.x.train=model.matrix(lpsa~., data=Prostate[train,])
+P.x.test=model.matrix(lpsa~., data=Prostate[test,])
+P.y.train=Prostate[train,]$lpsa
+P.y.test=Prostate[test,]$lpsa
+# cross-validation
+set.seed(999)
+P.ridge.cv = cv.glmnet(P.x.train,P.y.train,alpha=0,lambda=grid,thresh=1e-12)
+plot(P.ridge.cv)
+P.lambda.best=P.ridge.cv$lambda.min
+P.lambda.best
+P.y.predict = predict(P.ridge.cv,newx = P.x.test,s=P.lambda.best) # newdata=test is equal to x.test
+P.ridge.test.err = mean((P.y.test-P.y.predict)^2)
+P.ridge.test.err
+```
+
+
+#### (b) Fit a lasso model on the training set, with λ chosen by crossvalidation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+The best lambda for lasso chosen by cross validation was 0.135. The mean squared error on the testing set was 0.53473, which was larger than the linear regression model and ridge model. There were 10 non-zero coefficient estimates. They were:lcavol, lweight, lbph, svi, pgg45.
+
+```{r}
+set.seed(999)
+P.lasso.cv = cv.glmnet(P.x.train,P.y.train,alpha=1,lambda=grid,thresh=1e-12)
+plot(P.lasso.cv)
+P.lasso.lambda.best=P.lasso.cv$lambda.min
+P.lasso.lambda.best
+P.y.predict = predict(P.lasso.cv,newx = P.x.test,s=P.lasso.lambda.best)
+P.lasso.test.err = mean((P.y.test-P.y.predict)^2)
+P.lasso.test.err
+# fit a total lasso model with the best lasso lambda 
+x.tot=model.matrix(lpsa~., data=Prostate)
+P.lasso.tot=glmnet(x.tot,Prostate$lpsa,alpha=1,lambda=P.lasso.lambda.best,thresh=1e-12)
+P.lasso.coef=predict(P.lasso.tot,type='coefficients',s=P.lasso.lambda.best,thresh=1e-12)[,1]
+P.lasso.coef[P.lasso.coef!=0]
+```
+
